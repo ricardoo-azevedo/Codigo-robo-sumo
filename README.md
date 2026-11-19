@@ -15,7 +15,6 @@ Guia de referência para montagem, programação e desenvolvimento de um robô S
 - [9. Alimentação](#9-alimentação)
 - [10. Relação de materiais](#10-relação-de-materiais)
 - [11. Estimativa de peso e custo](#11-estimativa-de-peso-e-custo)
-- [12. Referências visuais](#12-referências-visuais)
 
 ## 1. Introdução
 
@@ -61,17 +60,7 @@ O fluxo básico apresentado no material é:
 
 ## 4. Opções de montagem
 
-O material apresenta duas possibilidades:
-
-### Opção 1 — Kit completo
-
-Aquisição de um kit de robô Sumô, utilizando os componentes fornecidos pelo fabricante. O exemplo citado é o kit RS100 V2, normalmente baseado no **Arduino UNO R3** e que utiliza a ponte H L9110S.
-
-![Exemplo de robô Sumô do kit](assets/imagem1.png)
-
-Manual citado no documento: [Robô Sumô Zumo Robot RS100 V2 — UsinaInfo](https://www.usinainfo.com.br/robotica-educacional/robo-sumo-zumo-robot-completo-rs100-v2-para-arduino-manual-de-montagem-6021.html).
-
-### Opção 2 — Montagem por componentes
+### Montagem por componentes
 
 Compra individual dos componentes, permitindo utilizar **Arduino UNO R3** ou **ESP32-WROOM**, com a ponte H TB6612FNG como alternativa para controlar os motores.
 
@@ -82,15 +71,8 @@ As ligações e os cuidados de cada plataforma são apresentados nas seções se
 O projeto admite duas placas:
 
 - **Arduino UNO R3:** trabalha com lógica de 5 V.
-- **ESP32-WROOM-32 DevKit:** trabalha com GPIO de 3,3 V.
 
 ![Arduino UNO R3](assets/imagem5.png)
-
-![ESP32-WROOM-32 DevKit](assets/imagem4.png)
-
-No caso do ESP32, o material apresenta a alimentação de 5 V na entrada VIN/5V da placa, passando pelo regulador interno para fornecer 3,3 V ao microcontrolador.
-
-**Atenção:** as entradas GPIO do ESP32 operam em 3,3 V. Não aplique 5 V diretamente a essas entradas.
 
 ## 6. Sensores de borda — TCRT5000
 
@@ -195,15 +177,6 @@ O VL53L0X é apresentado como alternativa de sensor a laser. Segundo o documento
 
 A alimentação depende da opção de montagem escolhida.
 
-### Opção 1 — Kit RS100 V2
-
-O kit utiliza:
-
-- Duas baterias 18650 Li-Ion de 3,7 V.
-- Módulo de alimentação e carregamento fornecido no próprio kit.
-
-Essa configuração pode ser mantida por quem utilizar a montagem completa do fabricante.
-
 ### Opção 2 — Montagem por componentes
 
 O documento sugere uma bateria **LiPo 2S de 7,4 V**, com capacidade aproximada de **1000 a 1500 mAh** e taxa de descarga de **20C ou superior**.
@@ -280,30 +253,8 @@ O custo pode variar conforme o sensor de detecção do adversário e o fornecedo
 
 Esses valores são estimativas do material de referência, não cotações atualizadas.
 
-## 12. Referências visuais
+**Documento-base:** *Projeto e Construção de um Robô Sumô — Guia básico para montagem, programação e desenvolvimento*, UNINASSAU – Graças, professores Bernardo, David e Rafael, versão 5, 29/08/2026.
 
-As imagens extraídas do PDF foram preservadas na pasta `assets/` e nomeadas em sequência, seguindo a ordem em que aparecem no documento original:
-
-| Arquivo | Página do PDF | Conteúdo |
-|---|---:|---|
-| `imagem1.png` | 3 | Exemplo de robô Sumô |
-| `imagem2.png` | 3 | Fluxo básico de funcionamento |
-| `imagem3.png` | 4 | Sensor TCRT5000 |
-| `imagem4.png` | 4 | ESP32-WROOM-32 DevKit |
-| `imagem5.png` | 4 | Arduino UNO R3 |
-| `imagem6.png` | 5 | Motores TT e rodas |
-| `imagem7.png` | 6 | Esquema elétrico ilustrativo |
-| `imagem8.png` | 7 | Ponte H L9110S |
-| `imagem9.png` | 8 | Ligação do HC-SR04 |
-| `imagem10.png` | 9 | Sensor a laser VL53L0X |
-| `imagem11.png` | 9 | Divisor resistivo para o ECHO |
-| `imagem12.png` | 10 | Diagrama das opções de alimentação |
-| `imagem13.png` | 10 | Exemplo de bateria LiPo |
-| `imagem14.png` | 11 | Informações do conversor Buck |
-| `imagem15.png` | 11 | Módulos e ligação do conversor Buck |
 
 ---
 
-**Documento-base:** *Projeto e Construção de um Robô Sumô — Guia básico para montagem, programação e desenvolvimento*, UNINASSAU – Graças, professores Bernardo, David e Rafael, versão 5, 29/08/2026.
-
-Este README organiza o conteúdo do PDF. Ele não substitui as regras oficiais da competição nem um diagrama elétrico específico da montagem final da equipe.

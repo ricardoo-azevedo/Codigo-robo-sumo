@@ -32,8 +32,8 @@ const byte IN4 = 1;
 // CONFIGURACOES
 // ==========================================
 
-// Branco = LOW
-const byte BORDA_ATIVA = LOW;
+// Branco = HIGH  
+const byte BORDA_ATIVA = HIGH;
 
 const bool INVERTER_MOTOR_A = false;
 const bool INVERTER_MOTOR_B = false;

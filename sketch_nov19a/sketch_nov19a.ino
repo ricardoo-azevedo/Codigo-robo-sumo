@@ -1,18 +1,14 @@
 
 /*
  * ==========================================
- *       ROBO DE SUMO - ARDUINO UNO
+ *          ROBO DE SUMO - ARDUINO UNO
  * ==========================================
  *
- * Controlador: L298N
- * Sensores: 3x TCRT5000
- * Distancia: HC-SR04
+ * VERSAO 1
+ * DETECCAO DA BORDA BRANCA: LOW
  *
- * ESTRATEGIA:
- * 1. Preparacao inicial
- * 2. Busca pelo adversario
- * 3. Ataque
- * 4. Fuga da borda
+ * Tatame: preto
+ * Borda: branca
  *
  */
 
@@ -20,16 +16,13 @@
 // PINAGEM
 // ==========================================
 
-// Sensores de borda
 const byte SENSOR_ESQUERDO = 3;
 const byte SENSOR_CENTRAL  = 4;
 const byte SENSOR_DIREITO  = 5;
 
-// Ultrassonico
 const byte TRIG = 6;
 const byte ECHO = 7;
 
-// Ponte H L298N
 const byte IN1 = 8;
 const byte IN2 = 9;
 const byte IN3 = 10;
@@ -39,35 +32,28 @@ const byte IN4 = 1;
 // CONFIGURACOES
 // ==========================================
 
-// ATENCAO: ajustar conforme a resposta real
-// dos sensores na superficie da arena.
+// Branco = LOW
 const byte BORDA_ATIVA = LOW;
 
-// Inversao individual dos motores.
-// Alterar caso algum motor avance ao contrario.
 const bool INVERTER_MOTOR_A = false;
 const bool INVERTER_MOTOR_B = false;
 
-// Distancias de combate
 const float DISTANCIA_ATAQUE = 35.0;
 const float DISTANCIA_LIBERAR_ATAQUE = 45.0;
 
-// Preparacao
 const unsigned long TEMPO_PREPARACAO = 5000;
 
-// Manobra de fuga
 const unsigned long TEMPO_RECUO = 350;
 const unsigned long TEMPO_GIRO_MINIMO = 350;
 const unsigned long TEMPO_GIRO_MAXIMO = 1200;
 
-// Estabilidade dos sensores apos a fuga
 const unsigned long TEMPO_BORDA_LIVRE = 100;
 
-// Busca
 const unsigned long INTERVALO_ULTRASSOM = 60;
+const unsigned long TIMEOUT_ULTRASSOM = 8000UL;
 
 // ==========================================
-// ESTADOS DO ROBO
+// ESTADOS
 // ==========================================
 
 enum Estado {
@@ -85,21 +71,22 @@ enum EtapaFuga {
 Estado estado = PREPARACAO;
 EtapaFuga etapaFuga = RECUANDO;
 
-// Controle de tempo
+// ==========================================
+// CONTROLE DE TEMPO
+// ==========================================
+
 unsigned long inicioPreparacao = 0;
 unsigned long inicioFuga = 0;
 unsigned long inicioGiro = 0;
 unsigned long inicioBordaLivre = 0;
 unsigned long ultimaMedicao = 0;
 
-// Controle de giro
 int direcaoGiro = 1;
 
 // ==========================================
-// CONTROLE DOS MOTORES
+// MOTORES
 // ==========================================
 
-// Canal A: OUT1 e OUT2
 void motorA(int direcao) {
 
   if (INVERTER_MOTOR_A) {
@@ -120,7 +107,6 @@ void motorA(int direcao) {
   }
 }
 
-// Canal B: OUT3 e OUT4
 void motorB(int direcao) {
 
   if (INVERTER_MOTOR_B) {
@@ -140,10 +126,6 @@ void motorB(int direcao) {
     digitalWrite(IN4, LOW);
   }
 }
-
-// ==========================================
-// MOVIMENTACAO
-// ==========================================
 
 void pararMotores() {
   motorA(0);
@@ -166,7 +148,7 @@ void girar(int direcao) {
 }
 
 // ==========================================
-// SENSORES DE BORDA
+// DETECCAO DA BORDA
 // ==========================================
 
 bool bordaDetectada() {
@@ -184,7 +166,7 @@ bool bordaDetectada() {
 }
 
 // ==========================================
-// SENSOR ULTRASSONICO
+// ULTRASSONICO
 // ==========================================
 
 float medirDistancia() {
@@ -198,7 +180,7 @@ float medirDistancia() {
   digitalWrite(TRIG, LOW);
 
   unsigned long duracao =
-    pulseIn(ECHO, HIGH, 25000UL);
+    pulseIn(ECHO, HIGH, TIMEOUT_ULTRASSOM);
 
   if (duracao == 0) {
     return 999.0;
@@ -208,31 +190,29 @@ float medirDistancia() {
 }
 
 // ==========================================
-// INICIALIZACAO DA FUGA
+// FUGA
 // ==========================================
 
 void iniciarFuga() {
 
   estado = FUGA;
-
   etapaFuga = RECUANDO;
 
   inicioFuga = millis();
-
   inicioBordaLivre = 0;
 
   recuar();
 }
-
-// ==========================================
-// EXECUCAO DA FUGA
-// ==========================================
 
 void executarFuga() {
 
   unsigned long agora = millis();
 
   if (etapaFuga == RECUANDO) {
+
+    if (bordaDetectada()) {
+      inicioBordaLivre = 0;
+    }
 
     recuar();
 
@@ -249,14 +229,7 @@ void executarFuga() {
     return;
   }
 
-  // Durante o giro, continua verificando
-  // se os sensores ainda identificam a borda.
-
-  girar(direcaoGiro);
-
-  bool borda = bordaDetectada();
-
-  if (borda) {
+  if (bordaDetectada()) {
 
     inicioBordaLivre = 0;
 
@@ -267,6 +240,8 @@ void executarFuga() {
     }
   }
 
+  girar(direcaoGiro);
+
   bool giroMinimoConcluido =
     agora - inicioGiro >= TEMPO_GIRO_MINIMO;
 
@@ -274,41 +249,33 @@ void executarFuga() {
     inicioBordaLivre != 0 &&
     agora - inicioBordaLivre >= TEMPO_BORDA_LIVRE;
 
-  bool tempoMaximoConcluido =
-    agora - inicioGiro >= TEMPO_GIRO_MAXIMO;
-
-  if (
-    giroMinimoConcluido &&
-    (bordaLivreEstavel || tempoMaximoConcluido)
-  ) {
+  if (giroMinimoConcluido && bordaLivreEstavel) {
 
     pararMotores();
 
-    // Alterna o sentido da proxima fuga
     direcaoGiro = -direcaoGiro;
 
     estado = BUSCA;
+
+    ultimaMedicao = millis();
   }
 }
 
 // ==========================================
-// INICIALIZACAO DO ARDUINO
+// SETUP
 // ==========================================
 
 void setup() {
 
-  // Sensores de borda
   pinMode(SENSOR_ESQUERDO, INPUT);
   pinMode(SENSOR_CENTRAL, INPUT);
   pinMode(SENSOR_DIREITO, INPUT);
 
-  // Ultrassonico
   pinMode(TRIG, OUTPUT);
   pinMode(ECHO, INPUT);
 
   digitalWrite(TRIG, LOW);
 
-  // L298N
   pinMode(IN1, OUTPUT);
   pinMode(IN2, OUTPUT);
   pinMode(IN3, OUTPUT);
@@ -320,85 +287,59 @@ void setup() {
 }
 
 // ==========================================
-// LOOP PRINCIPAL
+// LOOP
 // ==========================================
 
 void loop() {
 
-  // PRIORIDADE MAXIMA: BORDA
-
   if (estado != FUGA && bordaDetectada()) {
-
     iniciarFuga();
   }
 
-  // FUGA
   if (estado == FUGA) {
-
     executarFuga();
     return;
   }
 
-  // PREPARACAO
   if (estado == PREPARACAO) {
 
     pararMotores();
 
-    if (
-      millis() - inicioPreparacao >=
-      TEMPO_PREPARACAO
-    ) {
-
+    if (millis() - inicioPreparacao >= TEMPO_PREPARACAO) {
       estado = BUSCA;
+      ultimaMedicao = millis();
     }
 
     return;
   }
 
-  // LEITURA PERIODICA DO ULTRASSONICO
-
-  if (
-    millis() - ultimaMedicao >=
-    INTERVALO_ULTRASSOM
-  ) {
+  if (millis() - ultimaMedicao >= INTERVALO_ULTRASSOM) {
 
     ultimaMedicao = millis();
 
     float distancia = medirDistancia();
 
-    // Verifica novamente a borda
-    // depois da medicao ultrassonica.
-
     if (bordaDetectada()) {
-
       iniciarFuga();
       return;
     }
 
-    // ATAQUE
     if (estado == BUSCA) {
 
       if (distancia <= DISTANCIA_ATAQUE) {
-
         estado = ATAQUE;
         avancar();
-
       } else {
-
         girar(1);
       }
     }
 
-    // MANTEM O ATAQUE ATE A DISTANCIA DE LIBERACAO
     else if (estado == ATAQUE) {
 
       if (distancia > DISTANCIA_LIBERAR_ATAQUE) {
-
         estado = BUSCA;
         girar(1);
-
       } else {
-
         avancar();
       }
     }

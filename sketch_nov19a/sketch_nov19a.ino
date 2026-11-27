@@ -1,155 +1,191 @@
 
 /*
- * ============================================
- * ROBO SUMO - UNINASSAU
- * Arduino UNO R3
- * ============================================
+ * ==========================================
+ *       ROBO DE SUMO - ARDUINO UNO
+ * ==========================================
  *
- * Componentes:
- * - Arduino UNO R3
- * - TB6612FNG
- * - 2 motores TT
- * - 2 sensores TCRT5000
- * - HC-SR04
- * - Push Button
+ * Controlador: L298N
+ * Sensores: 3x TCRT5000
+ * Distancia: HC-SR04
+ *
+ * ESTRATEGIA:
+ * 1. Preparacao inicial
+ * 2. Busca pelo adversario
+ * 3. Ataque
+ * 4. Fuga da borda
  *
  */
 
-// ============================================
-// 1. PINOS
-// ============================================
+// ==========================================
+// PINAGEM
+// ==========================================
 
-// Ponte H - TB6612FNG
-const int PWMA = 5;
-const int AIN1 = 7;
-const int AIN2 = 8;
+// Sensores de borda
+const byte SENSOR_ESQUERDO = 3;
+const byte SENSOR_CENTRAL  = 4;
+const byte SENSOR_DIREITO  = 5;
 
-const int PWMB = 6;
-const int BIN1 = 9;
-const int BIN2 = 10;
+// Ultrassonico
+const byte TRIG = 6;
+const byte ECHO = 7;
 
-const int STBY = 4;
+// Ponte H L298N
+const byte IN1 = 8;
+const byte IN2 = 9;
+const byte IN3 = 10;
+const byte IN4 = 1;
 
-// Sensores TCRT5000
-const int SENSOR_ESQUERDO = A0;
-const int SENSOR_DIREITO = A1;
+// ==========================================
+// CONFIGURACOES
+// ==========================================
 
-// Sensor HC-SR04
-const int TRIG = 12;
-const int ECHO = 11;
+// ATENCAO: ajustar conforme a resposta real
+// dos sensores na superficie da arena.
+const byte BORDA_ATIVA = LOW;
 
-// Botao
-const int BOTAO = 2;
+// Inversao individual dos motores.
+// Alterar caso algum motor avance ao contrario.
+const bool INVERTER_MOTOR_A = false;
+const bool INVERTER_MOTOR_B = false;
 
+// Distancias de combate
+const float DISTANCIA_ATAQUE = 35.0;
+const float DISTANCIA_LIBERAR_ATAQUE = 45.0;
 
-// ============================================
-// 2. CONFIGURACOES
-// ============================================
+// Preparacao
+const unsigned long TEMPO_PREPARACAO = 5000;
 
-// Velocidades dos motores
-const int VELOCIDADE_ATAQUE = 220;
-const int VELOCIDADE_BUSCA = 150;
-const int VELOCIDADE_RECUO = 180;
+// Manobra de fuga
+const unsigned long TEMPO_RECUO = 350;
+const unsigned long TEMPO_GIRO_MINIMO = 350;
+const unsigned long TEMPO_GIRO_MAXIMO = 1200;
 
-// Distancia para detectar adversario (cm)
-const int DISTANCIA_ATAQUE = 35;
+// Estabilidade dos sensores apos a fuga
+const unsigned long TEMPO_BORDA_LIVRE = 100;
 
-// Tempo de espera antes da luta
-const unsigned long TEMPO_INICIO = 5000;
+// Busca
+const unsigned long INTERVALO_ULTRASSOM = 60;
 
-// Tempo de movimentacao para escapar
-const unsigned long TEMPO_RECUO = 300;
-const unsigned long TEMPO_GIRO = 350;
+// ==========================================
+// ESTADOS DO ROBO
+// ==========================================
 
-// Ajustar conforme os sensores utilizados
-// LOW = borda detectada
-const int BORDA_DETECTADA = LOW;
+enum Estado {
+  PREPARACAO,
+  BUSCA,
+  ATAQUE,
+  FUGA
+};
 
+enum EtapaFuga {
+  RECUANDO,
+  GIRANDO
+};
 
-// ============================================
-// 3. CONTROLE DOS MOTORES
-// ============================================
+Estado estado = PREPARACAO;
+EtapaFuga etapaFuga = RECUANDO;
 
-void motorEsquerdo(int velocidade) {
+// Controle de tempo
+unsigned long inicioPreparacao = 0;
+unsigned long inicioFuga = 0;
+unsigned long inicioGiro = 0;
+unsigned long inicioBordaLivre = 0;
+unsigned long ultimaMedicao = 0;
 
-  velocidade = constrain(velocidade, -255, 255);
+// Controle de giro
+int direcaoGiro = 1;
 
-  if (velocidade > 0) {
-    digitalWrite(AIN1, HIGH);
-    digitalWrite(AIN2, LOW);
+// ==========================================
+// CONTROLE DOS MOTORES
+// ==========================================
+
+// Canal A: OUT1 e OUT2
+void motorA(int direcao) {
+
+  if (INVERTER_MOTOR_A) {
+    direcao = -direcao;
   }
-  else if (velocidade < 0) {
-    digitalWrite(AIN1, LOW);
-    digitalWrite(AIN2, HIGH);
+
+  if (direcao > 0) {
+    digitalWrite(IN1, HIGH);
+    digitalWrite(IN2, LOW);
+  }
+  else if (direcao < 0) {
+    digitalWrite(IN1, LOW);
+    digitalWrite(IN2, HIGH);
   }
   else {
-    digitalWrite(AIN1, LOW);
-    digitalWrite(AIN2, LOW);
+    digitalWrite(IN1, LOW);
+    digitalWrite(IN2, LOW);
   }
-
-  analogWrite(PWMA, abs(velocidade));
 }
 
+// Canal B: OUT3 e OUT4
+void motorB(int direcao) {
 
-void motorDireito(int velocidade) {
-
-  velocidade = constrain(velocidade, -255, 255);
-
-  if (velocidade > 0) {
-    digitalWrite(BIN1, HIGH);
-    digitalWrite(BIN2, LOW);
+  if (INVERTER_MOTOR_B) {
+    direcao = -direcao;
   }
-  else if (velocidade < 0) {
-    digitalWrite(BIN1, LOW);
-    digitalWrite(BIN2, HIGH);
+
+  if (direcao > 0) {
+    digitalWrite(IN3, HIGH);
+    digitalWrite(IN4, LOW);
+  }
+  else if (direcao < 0) {
+    digitalWrite(IN3, LOW);
+    digitalWrite(IN4, HIGH);
   }
   else {
-    digitalWrite(BIN1, LOW);
-    digitalWrite(BIN2, LOW);
+    digitalWrite(IN3, LOW);
+    digitalWrite(IN4, LOW);
   }
-
-  analogWrite(PWMB, abs(velocidade));
 }
 
+// ==========================================
+// MOVIMENTACAO
+// ==========================================
 
-// Valores positivos = frente
-// Valores negativos = tras
-
-void movimentar(int esquerdo, int direito) {
-
-  motorEsquerdo(esquerdo);
-  motorDireito(direito);
+void pararMotores() {
+  motorA(0);
+  motorB(0);
 }
 
-
-void parar() {
-  movimentar(0, 0);
+void avancar() {
+  motorA(1);
+  motorB(1);
 }
 
-
-void avancar(int velocidade) {
-  movimentar(velocidade, velocidade);
+void recuar() {
+  motorA(-1);
+  motorB(-1);
 }
 
-
-void recuar(int velocidade) {
-  movimentar(-velocidade, -velocidade);
+void girar(int direcao) {
+  motorA(direcao);
+  motorB(-direcao);
 }
 
+// ==========================================
+// SENSORES DE BORDA
+// ==========================================
 
-void girarDireita(int velocidade) {
-  movimentar(velocidade, -velocidade);
+bool bordaDetectada() {
+
+  bool esquerdo =
+    digitalRead(SENSOR_ESQUERDO) == BORDA_ATIVA;
+
+  bool central =
+    digitalRead(SENSOR_CENTRAL) == BORDA_ATIVA;
+
+  bool direito =
+    digitalRead(SENSOR_DIREITO) == BORDA_ATIVA;
+
+  return esquerdo || central || direito;
 }
 
-
-void girarEsquerda(int velocidade) {
-  movimentar(-velocidade, velocidade);
-}
-
-
-// ============================================
-// 4. SENSOR ULTRASSONICO HC-SR04
-// ============================================
+// ==========================================
+// SENSOR ULTRASSONICO
+// ==========================================
 
 float medirDistancia() {
 
@@ -161,193 +197,211 @@ float medirDistancia() {
 
   digitalWrite(TRIG, LOW);
 
-  long duracao = pulseIn(ECHO, HIGH, 20000);
+  unsigned long duracao =
+    pulseIn(ECHO, HIGH, 25000UL);
 
-  // Sem retorno do sensor
   if (duracao == 0) {
-    return -1;
+    return 999.0;
   }
 
-  // Conversao para centimetros
-  float distancia = duracao * 0.0343 / 2;
-
-  return distancia;
+  return duracao / 58.0;
 }
 
+// ==========================================
+// INICIALIZACAO DA FUGA
+// ==========================================
 
-// ============================================
-// 5. SENSORES DE BORDA TCRT5000
-// ============================================
+void iniciarFuga() {
 
-bool detectarBordaEsquerda() {
+  estado = FUGA;
 
-  return digitalRead(SENSOR_ESQUERDO)
-         == BORDA_DETECTADA;
+  etapaFuga = RECUANDO;
+
+  inicioFuga = millis();
+
+  inicioBordaLivre = 0;
+
+  recuar();
 }
 
+// ==========================================
+// EXECUCAO DA FUGA
+// ==========================================
 
-bool detectarBordaDireita() {
+void executarFuga() {
 
-  return digitalRead(SENSOR_DIREITO)
-         == BORDA_DETECTADA;
-}
+  unsigned long agora = millis();
 
+  if (etapaFuga == RECUANDO) {
 
-// ============================================
-// 6. ESCAPAR DA BORDA
-// ============================================
+    recuar();
 
-void escaparBorda() {
+    if (agora - inicioFuga >= TEMPO_RECUO) {
 
-  bool esquerda = detectarBordaEsquerda();
-  bool direita = detectarBordaDireita();
+      etapaFuga = GIRANDO;
 
-  parar();
-  delay(50);
+      inicioGiro = agora;
+      inicioBordaLivre = 0;
 
-  // Recua para afastar o robo da borda
-  recuar(VELOCIDADE_RECUO);
-  delay(TEMPO_RECUO);
-
-  parar();
-  delay(50);
-
-  // Os dois sensores encontraram a borda
-  if (esquerda && direita) {
-
-    girarDireita(VELOCIDADE_BUSCA);
-    delay(500);
-
-  }
-
-  // Apenas o sensor esquerdo encontrou a borda
-  else if (esquerda) {
-
-    girarDireita(VELOCIDADE_BUSCA);
-    delay(TEMPO_GIRO);
-
-  }
-
-  // Apenas o sensor direito encontrou a borda
-  else if (direita) {
-
-    girarEsquerda(VELOCIDADE_BUSCA);
-    delay(TEMPO_GIRO);
-
-  }
-
-  parar();
-  delay(50);
-}
-
-
-// ============================================
-// 7. INICIALIZACAO
-// ============================================
-
-void setup() {
-
-  // Configuracao dos motores
-  pinMode(PWMA, OUTPUT);
-  pinMode(AIN1, OUTPUT);
-  pinMode(AIN2, OUTPUT);
-
-  pinMode(PWMB, OUTPUT);
-  pinMode(BIN1, OUTPUT);
-  pinMode(BIN2, OUTPUT);
-
-  pinMode(STBY, OUTPUT);
-
-  // Sensores de borda
-  pinMode(SENSOR_ESQUERDO, INPUT);
-  pinMode(SENSOR_DIREITO, INPUT);
-
-  // HC-SR04
-  pinMode(TRIG, OUTPUT);
-  pinMode(ECHO, INPUT);
-
-  // Botao com resistor interno
-  pinMode(BOTAO, INPUT_PULLUP);
-
-  // Monitor serial
-  Serial.begin(9600);
-
-  // Habilita a ponte H
-  digitalWrite(STBY, HIGH);
-
-  parar();
-
-  Serial.println("ROBO SUMO");
-  Serial.println("Aguardando acionamento...");
-
-  // Aguarda o botao ser pressionado
-  while (digitalRead(BOTAO) == HIGH) {
-    parar();
-  }
-
-  // Aguarda o botao ser solto
-  while (digitalRead(BOTAO) == LOW) {
-    parar();
-  }
-
-  Serial.println("Preparando combate...");
-
-  // Cinco segundos de espera
-  delay(TEMPO_INICIO);
-
-  Serial.println("COMBATE INICIADO!");
-}
-
-
-// ============================================
-// 8. LOOP PRINCIPAL
-// ============================================
-
-void loop() {
-
-  // PRIORIDADE 1: PROTEGER O ROBO
-
-  bool esquerda = detectarBordaEsquerda();
-  bool direita = detectarBordaDireita();
-
-  if (esquerda || direita) {
-
-    Serial.println("BORDA DETECTADA!");
-
-    escaparBorda();
+      girar(direcaoGiro);
+    }
 
     return;
   }
 
+  // Durante o giro, continua verificando
+  // se os sensores ainda identificam a borda.
 
-  // PRIORIDADE 2: PROCURAR ADVERSARIO
+  girar(direcaoGiro);
 
-  float distancia = medirDistancia();
+  bool borda = bordaDetectada();
 
-  Serial.print("Distancia: ");
-  Serial.println(distancia);
+  if (borda) {
 
+    inicioBordaLivre = 0;
 
-  // PRIORIDADE 3: ATACAR
+  } else {
 
-  if (distancia > 0 &&
-      distancia <= DISTANCIA_ATAQUE) {
-
-    Serial.println("ADVERSARIO DETECTADO!");
-
-    avancar(VELOCIDADE_ATAQUE);
-
+    if (inicioBordaLivre == 0) {
+      inicioBordaLivre = agora;
+    }
   }
 
-  // PRIORIDADE 4: CONTINUAR PROCURANDO
+  bool giroMinimoConcluido =
+    agora - inicioGiro >= TEMPO_GIRO_MINIMO;
 
-  else {
+  bool bordaLivreEstavel =
+    inicioBordaLivre != 0 &&
+    agora - inicioBordaLivre >= TEMPO_BORDA_LIVRE;
 
-    Serial.println("PROCURANDO ADVERSARIO...");
+  bool tempoMaximoConcluido =
+    agora - inicioGiro >= TEMPO_GIRO_MAXIMO;
 
-    girarDireita(VELOCIDADE_BUSCA);
+  if (
+    giroMinimoConcluido &&
+    (bordaLivreEstavel || tempoMaximoConcluido)
+  ) {
 
+    pararMotores();
+
+    // Alterna o sentido da proxima fuga
+    direcaoGiro = -direcaoGiro;
+
+    estado = BUSCA;
   }
-
-  delay(30);
 }
+
+// ==========================================
+// INICIALIZACAO DO ARDUINO
+// ==========================================
+
+void setup() {
+
+  // Sensores de borda
+  pinMode(SENSOR_ESQUERDO, INPUT);
+  pinMode(SENSOR_CENTRAL, INPUT);
+  pinMode(SENSOR_DIREITO, INPUT);
+
+  // Ultrassonico
+  pinMode(TRIG, OUTPUT);
+  pinMode(ECHO, INPUT);
+
+  digitalWrite(TRIG, LOW);
+
+  // L298N
+  pinMode(IN1, OUTPUT);
+  pinMode(IN2, OUTPUT);
+  pinMode(IN3, OUTPUT);
+  pinMode(IN4, OUTPUT);
+
+  pararMotores();
+
+  inicioPreparacao = millis();
+}
+
+// ==========================================
+// LOOP PRINCIPAL
+// ==========================================
+
+void loop() {
+
+  // PRIORIDADE MAXIMA: BORDA
+
+  if (estado != FUGA && bordaDetectada()) {
+
+    iniciarFuga();
+  }
+
+  // FUGA
+  if (estado == FUGA) {
+
+    executarFuga();
+    return;
+  }
+
+  // PREPARACAO
+  if (estado == PREPARACAO) {
+
+    pararMotores();
+
+    if (
+      millis() - inicioPreparacao >=
+      TEMPO_PREPARACAO
+    ) {
+
+      estado = BUSCA;
+    }
+
+    return;
+  }
+
+  // LEITURA PERIODICA DO ULTRASSONICO
+
+  if (
+    millis() - ultimaMedicao >=
+    INTERVALO_ULTRASSOM
+  ) {
+
+    ultimaMedicao = millis();
+
+    float distancia = medirDistancia();
+
+    // Verifica novamente a borda
+    // depois da medicao ultrassonica.
+
+    if (bordaDetectada()) {
+
+      iniciarFuga();
+      return;
+    }
+
+    // ATAQUE
+    if (estado == BUSCA) {
+
+      if (distancia <= DISTANCIA_ATAQUE) {
+
+        estado = ATAQUE;
+        avancar();
+
+      } else {
+
+        girar(1);
+      }
+    }
+
+    // MANTEM O ATAQUE ATE A DISTANCIA DE LIBERACAO
+    else if (estado == ATAQUE) {
+
+      if (distancia > DISTANCIA_LIBERAR_ATAQUE) {
+
+        estado = BUSCA;
+        girar(1);
+
+      } else {
+
+        avancar();
+      }
+    }
+  }
+}
+
